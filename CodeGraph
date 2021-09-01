@@ -1,0 +1,398 @@
+import requests
+import json
+import base64
+import vt_graph_api
+
+#API KEY in the HEADER
+#header = {'x-apikey': "eca9888b4f502d44010c97c45e6ae4091b86a43bb09364866b4d1a4604527f58"} #User: pattch
+#header = {'x-apikey': "a8b245a26ab4eebd38b23e8bd23da79658844120a57ba479efd0ebf87455130c"} #User: drakir
+header = {'x-apikey': "63641e701099870fddf57e0086e677ff8c4df4c06cdf118d1afb046caf6d9ef4"} #User: RicRic
+
+# create a formatted string of the Python JSON object
+def jprint(obj):
+    text = json.dumps(obj, sort_keys=True, indent=4)
+    print(text) #print a JSON object formatted
+
+#Read count_API file
+def readFileCount():
+    try:
+        f = open("APICount.txt", "r") #Open the file APICount.txt (if don't exist, create it)
+        content = f.read() #Obtain the information of the file
+        f.close() #Close file
+        return int(content) #return the number writed in APICount.txt
+    except:
+        return 0
+
+#Add calls for this graph to APICount.txt file
+def writeFileCount(count):
+    f = open("APICount.txt", "w+")
+    total = count + graph.get_api_calls() #Add the api calls for this graph, to APICount.txt
+    f.write(str(total)) #Write total
+    f.close()
+
+#Return JSON file information
+def search_File(search): #search with a hash of file
+    return requests.get('https://www.virustotal.com/api/v3/files/' + search, headers= header).json()
+#Ex: 8739c76e681f900923b900c9df0ef75cf421d39cabb54650c4b9ad19b6a76d85
+
+#Return JSON domain information
+def search_Domain(search):
+    return requests.get('https://virustotal.com/api/v3/domains/' + search, headers = header).json()
+#Ex: virustotal.com
+
+#Return JSON IP information
+def search_IP(search):
+    return requests.get('https://virustotal.com/api/v3/ip_addresses/' + search, headers = header).json()
+#Ex: 8.8.8.8
+
+#Return JSON URL information
+def search_URL(search):
+    encoded_url = base64.b64encode(search.encode()) #is necesary encode the url to base64
+    return requests.get('https://virustotal.com/api/v3/urls/' + encoded_url.decode().replace('=', ''), headers = header).json()
+#Ex: http://bbvaticanskeys.com/mbksle153jdsje/tiboksje72kdjse.php?jktydr374ddfh=cmda-approval-status
+
+#Return all the items relationated with the IOC (it isn't very important)
+def search_search(search):
+    return requests.get('https://www.virustotal.com/api/v3/search?query=' + search, headers = header).json()
+
+#Return node object from an id
+def getNode(id):
+    return graph.nodes[id]
+
+#ESTO AL FINAL NO SE USA (POSIBLEMENTE SE DEBA QUITAR)
+def get_score(data):
+    jprint(data["data"]["attributes"]["last_analysis_results"]["ALYac"]["category"])
+
+#Return type (or None) from an IOC
+def get_type(ioc):
+    if not ("error" in search_File(ioc)):
+        print("Founded file")
+        return "file"
+    elif not ("error" in search_Domain(ioc)):
+        print("Founded domain")
+        return "domain"
+    elif not ("error" in search_IP(ioc)):
+        print("Founded IP")
+        return "ip"
+    elif not ("error" in search_URL(ioc)):
+        print("Founded URL")
+        return "url"
+    else:
+        return None
+
+#Return a graph bounded 
+def bound(graph, min_detections):
+    nodes_to_delete = []
+    
+    for key in graph.nodes: #search for all the nodes of the graph
+        try:
+            if(graph.nodes[key].get_detections() < min_detections) and (graph.nodes[key].node_id not in iocs): #if it meets the condition we add it to the list of nodes to delete
+                nodes_to_delete.append(graph.nodes[key].node_id)
+        except:
+            nodes_to_delete.append(graph.nodes[key].node_id) #if an error occurs we add it to the list of nodes to be removed
+    
+    for node in nodes_to_delete: #delete the nodes of the graph that appear in the list: nodes_to_delete
+        graph.delete_node(node)
+
+#Try interconect the IOCs introduced by user
+def interconnect(graph):
+    for key1 in graph.nodes:
+        for key2 in graph.nodes:
+            if(key1 != key2):
+                graph.add_links_if_match(key1,key2,100, max_depth=7)
+
+def filter_relationship(graph, types_splited): #Bound relationships and nodes at the discretion of the user
+    list_delete = [] #Initialize array of tuples
+    
+    for key in graph.links.items(): #Find the relationship type to delete
+        if(key[0][2] in types_splited):
+            tuple_aux = (key[0][0], key[0][1], key[0][2])
+            list_delete.append(tuple_aux) #Add the relationship to list_delete to be eliminated
+    
+    for tup in list_delete: #Eliminate the relationships that are on the list
+        graph.delete_link(tup[0],tup[1],tup[2])
+
+
+    #Delete nodes without relationships
+    list_delete = []
+    for node in graph.nodes: #iterate all nodes
+        found = False
+        
+        for key in graph.links.items(): #Check if node has relationships 
+            if(node == key[0][0]) or (node == key[0][1]):
+                found = True
+                break #Stop if node has relationship (Optimization)
+            
+        if(not found): #If not found, add node to delete node list
+            list_delete.append(node)
+
+    #Delete nodes without relationship
+    for node in list_delete:
+        graph.delete_node(node) #Delete node
+
+def show_relationship(graph): #Show relationships types available
+    print("Files Relationships:")
+    print("1. behaviours")
+    print("2. bundled_files")
+    print("3. contacted_domains")
+    print("4. contacted_ips")
+    print("5. dropped_files")
+    print("6. execution_parents")
+    print("7. pre_resource_children")
+    print("8. pre_resource_parents")
+    print("9. screenshots")
+    print("")
+    print("Domain Relationships:")
+    print("10. historical_ssl_certificates")
+    print("11. immediate_parent")
+    print("12. resolutions")
+    print("13. siblings")
+    print("14. subdomains")
+    print("")
+    print("IP Relationships")
+    print("15. communicating_files")
+    print("16. historical_whois")
+    print("17. referrer_files")
+    print("18. votes")
+    print("")
+    print("URL Relationships")
+    print("19. comments")
+    print("20. graphs")
+    print("21. last_serving_ip_address")
+    print("22. network_location")
+    print("23. related_comments")
+    
+
+def check_number(string): #Return the name of the relationship number
+    if(string == "1"):
+         return "behaviours"
+    elif(string == "2"):
+        return "bundled_files"
+    elif(string == "3"):
+        return "contacted_domains"
+    elif(string == "4"):
+        return "contacted_ips"
+    elif(string == "5"):
+        return "dropped_files"
+    elif(string == "6"):
+        return "execution_parents"
+    elif(string == "7"):
+        return "pre_resource_children"
+    elif(string == "8"):
+        return "pre_resource_parents"
+    elif(string == "9"):
+        return "screenshots"
+    elif(string == "10"):
+        return "historical_ssl_certificates"
+    elif(string == "11"):
+        return "immediate_parent"
+    elif(string == "12"):
+        return "resolutions"
+    elif(string == "13"):
+        return "siblings"
+    elif(string == "14"):
+        return "subdomains"
+    elif(string == "15"):
+        return "communicating_files"
+    elif(string == "16"):
+        return "historical_whois"
+    elif(string == "17"):
+        return "referrer_files"
+    elif(string == "18"):
+        return "votes"
+    elif(string == "19"):
+        return "comments"
+    elif(string == "20"):
+        return "graphs"
+    elif(string == "21"):
+        return "last_serving_ip_address"
+    elif(string == "22"):
+        return "network_location"
+    elif(string == "23"):
+        return "related_comments"
+
+def print_url():
+    #Save the graph
+    graph.save_graph()
+
+    #Show the link for see the graph
+    print(graph.get_ui_link())
+
+    #Update API count
+    count = readFileCount()
+    writeFileCount(count)
+
+    #Print API consume info
+    print("Total Api calls: {}".format(readFileCount()))
+
+####################################
+####--------===-MAIN===---------####
+####################################
+
+#Create VirusTotal Graph
+#graph = vt_graph_api.VTGraph("eca9888b4f502d44010c97c45e6ae4091b86a43bb09364866b4d1a4604527f58", name="PruebaRicard2222",private=False) #pattch
+#graph = vt_graph_api.VTGraph("a8b245a26ab4eebd38b23e8bd23da79658844120a57ba479efd0ebf87455130c", name="PruebaDrakir1",private=False) #drakir
+graph = vt_graph_api.VTGraph("63641e701099870fddf57e0086e677ff8c4df4c06cdf118d1afb046caf6d9ef4", name="PruebaRicRic",private=False) #RicRic
+
+#variables
+iocs = [] #list of IOCs
+numberIOC = 0 #amount of IOC
+expand = 0 #level to expand the IOCs
+max_sons = 100 #max sons per IOC
+min_detections = 0 #minimum detections per IOC
+delete_relationships = False #bool for know if the client want filter relationships
+
+#Entry number of IOCs
+while(numberIOC <= 0):
+    numberIOC = int(input("How many IOC do you want search?: ")) #Get the number of IOC to search
+    
+    if(numberIOC <= 0): #That show a message if numberIOC < 0
+        print("The number must be greter than 0")
+
+#Entry IOCs
+for i in range(0,numberIOC):
+    iocs.append(input("Enter the IOC number {}: ".format(i+1))) #Get the IOC and save them in the array iocs
+
+#Entry expand level and max_sons per IOC
+expand = int(input("Enter the level to expand the IOCs: "))
+
+#Entry minimum detections
+min_detections = int(input("Enter the minimum detections per IOC to add to the graph: "))
+
+#Filter relationships
+delete_relationships = str(input("Do you want to filter the relationships? (yes or no): "))
+
+#If flag delete_relationships == true, process it
+if(delete_relationships == "yes"): 
+    show_relationship(graph) #Show the relationships type
+    types = str(input("Enter the ids of the relationships to filter (separated with ',' e.g. 1,5,19): ")) #Input for relationships types
+    types_splited = [] #Initialize list
+
+    #Work array if length is bigger than 1
+    if(len(types) > 1): 
+        types_splited = types.split(",") #Split with the separator , 
+        
+        for i in range(0,len(types_splited)):
+            types_splited[i] = check_number(types_splited[i]) #Get the string related with the number 
+    
+    else: #Work array if length is equal 1
+        types_splited.append(check_number(types)) #Get the string related with the number 
+
+
+#Find type of the IOCs provided
+for ioc in iocs:
+    type = get_type(ioc) #Get type from the ioc
+    
+    if(type): #If type != None, add the node to the graph
+        graph.add_node(ioc, type)
+
+#Try interconnect the nodes introduced by user
+if(len(graph.nodes) > 1):
+    interconnect(graph)
+
+#Expand the graph
+graph.expand_n_level(expand,40,max_sons)
+
+#Remove nodes that do not meet the conditions
+bound(graph, min_detections)
+
+#Purge the relationships and the correspondent nodes of the graph
+if(delete_relationships == "yes"):
+    filter_relationship(graph, types_splited)
+
+#Show URL and API calls
+print_url()
+
+
+#BUCLE
+loop = str(input("Do you want to make another query? (yes or no): "))
+
+while(loop == "yes"):
+    print("Choose an option:")
+    print("1. Enter another IOC and try to add it to the graph")
+    print("2. Expand the graph")
+    print("3. Bound by number of detections")
+    print("4. Bound by type of relationship")
+    print("5. Exit")
+    option = int(input("Option: "))
+
+    if(option == 1):
+        numberIOC = 0
+        iocs = [] #list of IOCs
+        
+        #Entry number of IOCs
+        while(numberIOC <= 0):
+            numberIOC = int(input("How many IOC do you want search?: ")) #Get the number of IOC to search
+            
+            if(numberIOC <= 0): #That show a message if numberIOC < 0
+                print("The number must be greter than 0")
+
+        #Entry IOCs
+        for i in range(0,numberIOC):
+            iocs.append(input("Enter the IOC number {}: ".format(i+1))) #Get the IOC and save them in the array iocs
+        
+        #Find type of the IOCs provided
+        for ioc in iocs:
+            type = get_type(ioc) #Get type from the ioc
+            
+            #If type != None, add the node to the graph
+            if(type):
+                graph.add_node(ioc, type)
+                if(graph.connect_with_graph(ioc, 10000, 3, 2000, True)):
+                    print("{} has been added".format(ioc))
+                else:
+                    print("{} couldn't be added".format(ioc))
+                    graph.delete_node(ioc)
+        
+        #Show URL and API calls
+        print_url()
+
+    elif(option == 2):
+        expand = 0 #reset
+        #Entry expand level and max_sons per IOC
+        expand = int(input("Enter the level to expand the IOCs: "))
+
+        #Expand the graph
+        graph.expand_n_level(expand,40,max_sons)
+
+        #Show URL and API calls
+        print_url()
+
+    elif(option == 3):
+        min_detections = 0 #reset
+        #Entry minimum detections
+        min_detections = int(input("Enter the minimum detections per IOC to add to the graph: "))
+        
+        #Remove nodes that do not meet the conditions
+        bound(graph, min_detections)
+
+        #Show URL and API calls
+        print_url()
+    
+    elif(option == 4):
+        #Show the relationships type
+        show_relationship(graph) 
+        
+        types = str(input("Enter the ids of the relationships to filter (separated with ',' e.g. 1,5,19): ")) #Input for relationships types
+        types_splited = [] #Initialize list
+
+        #Work array if length is bigger than 1
+        if(len(types) > 1): 
+            types_splited = types.split(",") #Split with the separator , 
+            
+            for i in range(0,len(types_splited)):
+                types_splited[i] = check_number(types_splited[i]) #Get the string related with the number 
+        
+        else: #Work array if length is equal 1
+            types_splited.append(check_number(types)) #Get the string related with the number
+        
+        #Purge the relationships and the correspondent nodes of the graph
+        if types_splited:
+            filter_relationship(graph, types_splited)
+        #Show URL and API calls
+        print_url()
+
+    elif(option == 5):
+        loop = False
+
+print("Thanks for using my app. Bye")
