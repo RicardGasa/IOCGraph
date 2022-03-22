@@ -4,9 +4,9 @@ import base64
 import vt_graph_api
 
 #API KEY in the HEADER
-#header = {'x-apikey': "eca9888b4f502d44010c97c45e6ae4091b86a43bb09364866b4d1a4604527f58"} #User: pattch
-#header = {'x-apikey': "a8b245a26ab4eebd38b23e8bd23da79658844120a57ba479efd0ebf87455130c"} #User: drakir
-header = {'x-apikey': "63641e701099870fddf57e0086e677ff8c4df4c06cdf118d1afb046caf6d9ef4"} #User: RicRic
+#header = {'x-apikey': "INSERT_YOUR_APIKEY"} #User: pattch
+#header = {'x-apikey': "INSERT_YOUR_APIKEY"} #User: drakir
+header = {'x-apikey': "INSERT_YOUR_APIKEY"} #User: RicRic
 
 # create a formatted string of the Python JSON object
 def jprint(obj):
@@ -230,9 +230,9 @@ def print_url():
 ####################################
 
 #Create VirusTotal Graph
-#graph = vt_graph_api.VTGraph("eca9888b4f502d44010c97c45e6ae4091b86a43bb09364866b4d1a4604527f58", name="PruebaRicard2222",private=False) #pattch
-#graph = vt_graph_api.VTGraph("a8b245a26ab4eebd38b23e8bd23da79658844120a57ba479efd0ebf87455130c", name="PruebaDrakir1",private=False) #drakir
-graph = vt_graph_api.VTGraph("63641e701099870fddf57e0086e677ff8c4df4c06cdf118d1afb046caf6d9ef4", name="PruebaRicRic",private=False) #RicRic
+#graph = vt_graph_api.VTGraph("INSERT_YOUR_APIKEY", name="PruebaRicard2222",private=False) #pattch
+#graph = vt_graph_api.VTGraph("INSERT_YOUR_APIKEY", name="PruebaDrakir1",private=False) #drakir
+graph = vt_graph_api.VTGraph("INSERT_YOUR_APIKEY", name="PruebaRicRic",private=False) #RicRic
 
 #variables
 iocs = [] #list of IOCs
